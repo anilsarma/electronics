@@ -1,0 +1,10 @@
+Reference, Value, Footprint, Datasheet
+"R1","R10K","Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P15.24mm_Horizontal","~"
+"A1","Arduino_Nano_v2.x","Module:Arduino_Nano","https://www.arduino.cc/en/uploads/Main/ArduinoNanoManual23.pdf"
+"D1","LED","LED_THT:LED_D3.0mm_Clear","~"
+"U1","NRF24L01_Breakout","RF_Module:nRF24L01_Breakout","http://www.nordicsemi.com/eng/content/download/2730/34105/file/nRF24L01_Product_Specification_v2_0.pdf"
+"J1","Screw_Terminal_01x02","TerminalBlock:TerminalBlock_bornier-2_P5.08mm","~"
+"C1","C","","~"
+"J2","Screw_Terminal_01x03","TerminalBlock:TerminalBlock_bornier-3_P5.08mm","~"
+"U2","DHT11","Sensor:Aosong_DHT11_5.5x12.0_P2.54mm","http://akizukidenshi.com/download/ds/aosong/DHT11.pdf"
+"C2","10uf","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm","~"
