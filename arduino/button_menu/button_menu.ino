@@ -3,11 +3,11 @@
 #define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <Encoder.h>
 
-#include <ESP8266WiFi.h>
-#include <DNSServer.h>
+//#include <ESP8266WiFi.h>
+//#include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
-
+#include "LcdMenuMgr.h"
 
 
 // F formatter tells compliler it's a floating point value
@@ -162,7 +162,7 @@ void setup() {
   mainmenu.add("BAD");
   mainmenu.add("UGLY");
 
-  lcd.begin();
+  lcd.begin(2,16);
   //lcd.backlight();
   lcd.clear();
 

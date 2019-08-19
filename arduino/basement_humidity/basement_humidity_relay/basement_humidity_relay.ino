@@ -5,25 +5,39 @@ dht11 DHT11;
 #define RELAY_PIN 3
 #define DLH111_PIN 2
 
-const unsigned long  MAX_RESTTIME=5*60 * 1000L;
-const unsigned long MAX_RUNTIME = 20*60*1000L;
+unsigned long  time =0;
+char status = 0;
+int first =1;
+
+const unsigned long  MAX_RESTTIME=5*60L * 1000L;
+const unsigned long MAX_RUNTIME = 20*60L*1000L;
+
+
+float LOW_HUMIDITY=48;
+float HIGH_HUMIDITY=50;
+
 void setup()
 {
   Serial.begin(9600);
   pinMode(RELAY_PIN, OUTPUT);
+  time =0;
+  status = 0;
 }
 
-unsigned long  time =0;
-char status = 0;
 
 void loop()
 {
   Serial.println();
 
   unsigned long now = millis();
-
+ 
+  unsigned long delayms=now - time;
   int chk = DHT11.read(2);
 
+if(first) {
+  first =1;
+  delayms = 60* 60 * 10000L;
+}
   Serial.print("Humidity (%): ");
   float h = (float)DHT11.humidity;
   Serial.println(h, 2);
@@ -47,7 +61,15 @@ void loop()
   Serial.print(" desire state: ");
   Serial.println(desire, DEC);
 
-  
+  Serial.print(" MAX rest");
+  Serial.println(MAX_RESTTIME, DEC);
+
+  Serial.print(" MAX run");
+  Serial.println(MAX_RUNTIME, DEC);
+
+  Serial.print(" decay run ");
+  Serial.println(delayms*1.0, 2);
+
   if(desire==0 && status ==1) {
     status  =0;
     time = now;
@@ -56,7 +78,7 @@ void loop()
   // running for too long.
   if(status ==1) {
     // run time
-    int runtime=now - time;
+    unsigned long runtime=now - time;
     if(runtime > MAX_RUNTIME) {
         digitalWrite(RELAY_PIN, LOW); // turn off
         time=now; // 
@@ -66,11 +88,14 @@ void loop()
 
   if(desire==1) {
     if(status ==0) {
-      int delay = now - time;
-      if( delay > MAX_RESTTIME) {
+      //unsigned long delay = now - time;
+      if( delayms > MAX_RESTTIME) {
         digitalWrite(RELAY_PIN, HIGH); // turn off
         time=now; // 
         status = 1;
+      }else {
+        Serial.print("rest time ");
+        Serial.print(delayms * 1.0, 2);
       }
     }
   } else  {
@@ -94,8 +119,6 @@ void loop()
   
 }
 
-float LOW_HUMIDITY=48 ;
-float HIGH_HUMIDITY=50;
 int checkFanState(float humidity)  {
   if(humidity >= HIGH_HUMIDITY ) {
     Serial.print("high humidity ");
