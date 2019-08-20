@@ -60,8 +60,8 @@ const String get_led_runtime() {
   return String(led_monitor.get_runtime()/1000);
 }
 void edit_led_runtime(bool clicked, bool longPressed, int direction, bool save) {
-  led_monitor.set_runtime( led_monitor.get_runtime()  + (direction * 5000));
-  Serial.print( led_monitor.get_runtime()  + (direction * 5000) );
+  led_monitor.set_runtime( led_monitor.get_runtime()  + (direction * 30000));
+  Serial.print( led_monitor.get_runtime()  + (direction * 30000) );
   if(save) {
     Serial.print("Saving edit_led_runti "); 
     Serial.println(led_monitor.get_runtime());
@@ -71,7 +71,7 @@ void edit_led_runtime(bool clicked, bool longPressed, int direction, bool save) 
   return String(led_monitor.get_pausetime()/1000);
 }
 void edit_led_pausetime(bool clicked, bool longPressed, int direction, bool save) {
-  led_monitor.set_pausetime( led_monitor.get_pausetime()  + (direction * 5000));
+  led_monitor.set_pausetime( led_monitor.get_pausetime()  + (direction * 30000));
   if(save) {
     Serial.print("Saving led pause time ");
     Serial.println(led_monitor.get_pausetime());

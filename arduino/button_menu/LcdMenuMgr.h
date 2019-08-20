@@ -129,7 +129,7 @@ class MenuMgr {
     void loop(int position, boolean btn_state) {
       int t1 = millis();
 
-      if ((t1 - t0) < 200) {
+      if ((t1 - t0) < 100) {
         return;
       }
       //      lcd.setCursor(6, 1);
