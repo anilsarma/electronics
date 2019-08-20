@@ -1,3 +1,4 @@
+#if 0
 
 #include <LiquidCrystal_I2C.h>
 #define ENCODER_DO_NOT_USE_INTERRUPTS
@@ -25,29 +26,87 @@ LiquidCrystal_I2C lcd(0x27, 16, 2); // SDA = D2, SCL=D1 (ESP8266E)
 WiFiManager wifiManager;
 WiFiServer server(80);
 
-Encoder * encoder = NULL; //myEnc(D3, D4);
-void (*reboot)(void) = 0;
 
+int counter = 0;
+int aState;
+int bState;
+int aLastState;
+Encoder * encoder = NULL; //myEnc(D3, D4);
+
+String menu[] = {
+  "Menu",                   //0
+  "Menu>LED",               //1
+  "Menu>LED>Off",           //2
+  "Menu>LED>On",            //3
+  "Menu>LED>Fade",          //4
+  "Menu>LED>Blink",         //5
+  "Menu>LCDlight",          //6
+  "Menu>Nothing1",          //7
+  "Menu>Nothing2",          //8
+  "Menu>Nothing3"           //9
+};
+
+typedef const String (*status)();
+typedef void (*action)(bool btnState, bool longPress);
+
+struct ITEM {
+  char *item;
+  status s_fn;
+  action a_fn;
+
+  ITEM(char* i, status s, action a):
+    item(i), s_fn(s), a_fn(a) {
+
+  }
+};
+class Menu {
+    Menu * parent = NULL;
+    ITEM *items[20];
+
+  public:
+    char * name;
+    int pos = 0;
+    int count = 0;
+    Menu() {
+      name = "MENU";
+      count = 0;
+      pos = 0;
+    }
+    void add(char *item) {
+      add(item, NULL, NULL);
+    }
+    void add(char* item, status func, action atn) {
+      //strcpy(items[count], item); // = item;
+      items[count] = new ITEM(item, func, atn);
+      count ++;
+      Serial.println(count);
+      Serial.print("- ");
+      Serial.println(item);
+      Serial.println(items[count - 1]->item );
+    }
+    ITEM* get(int index) {
+      Serial.print("index ");
+      Serial.println(index, DEC);
+      Serial.print(index, DEC);
+      Serial.print("- ");
+      Serial.println(items[index]->item);
+      return items[index];
+    }
+
+};
+void (*reboot)(void) = 0;
+Menu mainmenu;
+int menusize = 10;
+Menu *currentMenu = &mainmenu;
 //
 //
 // new
 struct Callback: public LcdMenuCallback {
   void update_lcd(MenuItem* item) {
-//    Serial.print(item->get_name());
-//    if (item->is_editable()) {
-//      Serial.print(item->get_value());
-//    }
-
-    lcd.setCursor(0, 0);
-    lcd.print("*MENU*");
-
-    lcd.setCursor(0, 1);
-    lcd.print(item->get_name());
-    lcd.print(" ");
-    lcd.print(item->get_status());
-    lcd.print("            ");
-
-
+    Serial.print(item->get_name());
+    if (item->is_editable()) {
+      Serial.print(item->get_value());
+    }
   }
 };
 
@@ -74,19 +133,11 @@ void reset_wifi(bool btn, bool lp) {
   }
 }
 
-int high_humidity = 50;
-const String get_high_humidity() {
-  return  String(high_humidity);
-}
-
-int low_humidity = 50;
-const String get_low_humidity() {
-  return  String(low_humidity);
-}
 
 const String get_humidity() {
   return String(millis() ) + "%";
 }
+
 const String get_uptime() {
   double t = millis() / 1000;
   String u = "s";
@@ -107,11 +158,19 @@ const String get_uptime() {
 
 void connect_to_wifi();
 void setup() {
-  Serial.begin(9600);
- 
+  Serial.begin(115200);
+  mainmenu.add("HUMIDITY", get_humidity, NULL);
+  mainmenu.add("IP", get_ip, NULL);
+  mainmenu.add("UPTIME", get_uptime, NULL);
+  mainmenu.add("RESET WIFI", NULL, reset_wifi);
+  mainmenu.add("LED", led_status, led_toggle);
+  mainmenu.add("SETTINGS");
+  mainmenu.add("GOOD");
+  mainmenu.add("BAD");
+  mainmenu.add("UGLY");
+
+
   menu_mgr.get_menu().add("HUMIDITY", get_humidity, NULL);
-  menu_mgr.get_menu().add("HUM HIGH", get_high_humidity, NULL, true, &high_humidity);
-  menu_mgr.get_menu().add("HUM LOW", get_lo_humidity, NULL, true, &low_humidity);
   menu_mgr.get_menu().add("IP", get_ip, NULL);
   menu_mgr.get_menu().add("UPTIME", get_uptime, NULL);
   menu_mgr.get_menu().add("RESET WIFI", NULL, reset_wifi);
@@ -130,6 +189,7 @@ void setup() {
   lcd.clear();
   server.begin();
 
+
   encoder = new Encoder(D3, D4);
 
   pinMode(D5, INPUT_PULLUP);
@@ -137,8 +197,8 @@ void setup() {
   //attachInterrupt(D5, handleKey, RISING);
   // initialize serial transmission for debugging
   Serial.write("setup complete");
-  lcd.setCursor(0, 0);
-  lcd.print("Ready");
+  updateMenu(false, false);
+
 
 }
 byte pressedButton, currentPos, currentPosParent, possiblePos[20], possiblePosCount, possiblePosScroll = 0;
@@ -149,12 +209,136 @@ bool isButtonPressed() {
   }
   return true;
 }
-
-
-void loop() { 
+int oldPosition = 0;
+int t0  = 0;
+int tbtn = 0;
+bool btnPressed = false;
+bool btnState = false;
+bool longPress = false;
+int lastMenuUpdate = 0;
+void loop() {
   connect_to_wifi();
+  // lcd.backlight();
+  //doEncoder_Expanded();
+
+  //lcd.setCursor(1, 0);
+  //lcd.print("Capacitance ");
+
+  // lcd.setCursor(1, 1);
+  int val = digitalRead(D5);
+  if ( val == HIGH) {
+    // lcd.print("Working 0x3F HIGH");
+  } else {
+    //lcd.print("Working 0x3F LOW");
+  }
+
+
+
   long newPosition = encoder->read();
-  menu_mgr.loop(newPosition, isButtonPressed());
+
+  int mv = currentMenu->count - 1;
+  int t1 = millis();
+  newPosition = (newPosition > mv) ? mv : newPosition;
+  newPosition = (newPosition < 0) ? 0 : newPosition;
+  encoder->write(newPosition);
+
+  if (isButtonPressed()) {
+    if (btnPressed) {
+      if ((t1 - tbtn) > 2000) {
+        if (!longPress) {
+          longPress = true;
+          updateMenu(true, longPress);
+        }
+      }
+    } else {
+      tbtn = millis();
+      btnPressed = true;
+      updateMenu(true, longPress);
+    }
+
+
+  } else {
+    if (btnPressed) {
+      updateMenu(false, false);
+    }
+    longPress = false;
+    btnPressed = false;
+  }
+  if (newPosition != oldPosition) {
+
+    if ( (t1 - t0) < 500) {
+      encoder->write(oldPosition);
+      return;
+    }
+    {
+      int diff = newPosition - oldPosition;
+      Serial.print("diff ");
+      Serial.println(diff, DEC);
+      if ( diff < 0 ) {
+        newPosition = oldPosition - 1;
+      } else if (diff > 0) {
+        newPosition = oldPosition + 1;
+      }
+      newPosition = (newPosition > mv) ? mv : newPosition;
+      newPosition = (newPosition < 0) ? 0 : newPosition;
+      encoder->write(newPosition);
+    }
+    t0 = t1;
+    oldPosition = newPosition;
+    Serial.print("Pos ");
+    Serial.println(newPosition, DEC);
+    currentPos = newPosition;
+    updateMenu(isButtonPressed(), longPress);
+  }
+
+
+  //lcd.print(newPosition);
+  //lcd.print("   ");
+  aLastState = aState; // Updates the previous state of the outputA with the current state
+  //delay(500);
+  int now = millis();
+  if (( now - lastMenuUpdate) > 500) {
+    updateMenu(false, false);
+  }
+}
+
+void updateMenu(bool isClick, bool longPress) {
+  int mv = currentMenu->count - 1;
+
+  lastMenuUpdate = millis();
+  currentPos = (currentPos > mv) ? mv : currentPos;
+  encoder->write(currentPos);
+  lcd.setCursor(0, 0);
+  lcd.print(currentMenu->name);
+
+  lcd.setCursor(0, 1);
+  ITEM* entry = currentMenu->get(currentPos);
+  lcd.print(entry->item);
+
+  //  if( strcmp(currentMenu->get(currentPos), "LED")==0) {
+  //       if(isClick) {
+  //          led_toggle(isClick, longPress);
+  //       }
+  //       lcd.print(" " );
+  //       lcd.print(led_status());
+  //  }
+  if ( entry != NULL ) {
+    if ( isClick && entry->a_fn != NULL) {
+      entry->a_fn(isClick, longPress);
+    }
+    if (entry->s_fn != NULL) {
+      lcd.print(" ");
+      lcd.print(entry->s_fn());
+    }
+  }
+  if (isClick) {
+    if (longPress) {
+      lcd.print(" LONG " );
+    } else {
+      lcd.print(" SHHORT " );
+    }
+  }
+  lcd.print("            ");
 }
 
 
@@ -268,3 +452,4 @@ void connect_to_wifi() {
     Serial.println("");
   }
 }
+#endif
