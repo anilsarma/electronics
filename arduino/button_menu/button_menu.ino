@@ -10,6 +10,9 @@
 #include "LcdMenuMgr.h"
 #include "ClickMgr.h"
 #include "utils.h"
+#include "Monitor.h"
+#include "www_handler.h"
+
 
 // F formatter tells compliler it's a floating point value
 #define encoder0PinA D3 // CLK on rotary encoder
@@ -33,11 +36,6 @@ void (*reboot)(void) = 0;
 // new
 struct Callback: public LcdMenuCallback {
   void update_lcd(MenuItem* item) {
-//    Serial.print(item->get_name());
-//    if (item->is_editable()) {
-//      Serial.print(item->get_value());
-//    }
-
     lcd.setCursor(0, 0);
     lcd.print("*MENU*");
 
@@ -54,15 +52,51 @@ struct Callback: public LcdMenuCallback {
 Callback callback;
 MenuMgr menu_mgr(&callback);
 
-bool led_state = false;
+bool desired=false;
+Monitor::State led_state = Monitor::STOPPED;
+Monitor led_monitor(30000, 5000);
 
+const String get_led_runtime() {
+  return String(led_monitor.get_runtime()/1000);
+}
+void edit_led_runtime(bool clicked, bool longPressed, int direction, bool save) {
+  led_monitor.set_runtime( led_monitor.get_runtime()  + (direction * 5000));
+  Serial.print( led_monitor.get_runtime()  + (direction * 5000) );
+  if(save) {
+    Serial.print("Saving edit_led_runti "); 
+    Serial.println(led_monitor.get_runtime());
+  }
+}
+ const String get_led_pausetime() {
+  return String(led_monitor.get_pausetime()/1000);
+}
+void edit_led_pausetime(bool clicked, bool longPressed, int direction, bool save) {
+  led_monitor.set_pausetime( led_monitor.get_pausetime()  + (direction * 5000));
+  if(save) {
+    Serial.print("Saving led pause time ");
+    Serial.println(led_monitor.get_pausetime());
+  }
+}
 const String led_status() {
-  return led_state ? "ON" : "OFF";
+  String str(led_state==Monitor::STARTED ? "ON" : (led_state==Monitor::STOPPED?"OFF":"PAUSED"));
+  double t = led_monitor.get_time();
+  if( t>0) {
+    return str + " " + String(t/1000);
+  }
+  return str;
 }
 
+
+void set_led_state(Monitor::State state) {
+  if( led_state != state ) {
+      led_state = state;
+      digitalWrite(LED, led_state==Monitor::STARTED ? HIGH : LOW);
+  }
+}
 void led_toggle(bool btn, bool lp) {
-  led_state = !led_state;
-  digitalWrite(LED, led_state ? HIGH : LOW);
+  desired = !desired;
+  led_monitor.monitor(desired);
+  set_led_state(desired?Monitor::STARTED:Monitor::STOPPED);
 }
 
 void reset_wifi(bool btn, bool lp) {
@@ -79,14 +113,29 @@ const String get_high_humidity() {
   return  String(high_humidity);
 }
 
+void edit_high_humidity(bool clicked, bool longPressed, int direction, bool save) {
+  high_humidity += direction;
+  if(save) {
+    Serial.print("Saving HIGH ");
+    Serial.println(high_humidity);
+  }
+}
 int low_humidity = 50;
 const String get_low_humidity() {
   return  String(low_humidity);
 }
-
+void edit_low_humidity(bool clicked, bool longPressed, int direction, bool save) {
+  low_humidity += direction;
+  if(save) {
+    Serial.print("Saving LOW ");
+    Serial.println(low_humidity);
+  }
+}
 const String get_humidity() {
   return String(millis() ) + "%";
 }
+
+
 const String get_uptime() {
   double t = millis() / 1000;
   String u = "s";
@@ -105,17 +154,20 @@ const String get_uptime() {
   return String(t) + "" + u;
 }
 
-void connect_to_wifi();
+void connect_to_wifi(WiFiServer);
 void setup() {
   Serial.begin(9600);
  
   menu_mgr.get_menu().add("HUMIDITY", get_humidity, NULL);
-  menu_mgr.get_menu().add("HUM HIGH", get_high_humidity, NULL, true, &high_humidity);
-  menu_mgr.get_menu().add("HUM LOW", get_low_humidity, NULL, true, &low_humidity);
+  menu_mgr.get_menu().add("HUM HIGH", get_high_humidity, NULL, &edit_high_humidity);
+  menu_mgr.get_menu().add("HUM LOW", get_low_humidity, NULL,   &edit_low_humidity);
   menu_mgr.get_menu().add("IP", get_ip, NULL);
   menu_mgr.get_menu().add("UPTIME", get_uptime, NULL);
   menu_mgr.get_menu().add("RESET WIFI", NULL, reset_wifi);
   menu_mgr.get_menu().add("LED", led_status, led_toggle);
+  menu_mgr.get_menu().add("LED RUN", get_led_runtime, NULL,   &edit_led_runtime);
+  menu_mgr.get_menu().add("LED PAUSE", get_led_pausetime, NULL,   &edit_led_pausetime);
+  
   menu_mgr.get_menu().add("SETTINGS");
   menu_mgr.get_menu().add("GOOD");
   menu_mgr.get_menu().add("BAD");
@@ -141,7 +193,7 @@ void setup() {
   lcd.print("Ready");
 
 }
-byte pressedButton, currentPos, currentPosParent, possiblePos[20], possiblePosCount, possiblePosScroll = 0;
+//byte pressedButton, currentPos, currentPosParent, possiblePos[20], possiblePosCount, possiblePosScroll = 0;
 bool isButtonPressed() {
   int val = digitalRead(D5);
   if ( val == HIGH) {
@@ -152,119 +204,11 @@ bool isButtonPressed() {
 
 
 void loop() { 
-  connect_to_wifi();
+  connect_to_wifi(server);
   long newPosition = encoder->read();
   menu_mgr.loop(newPosition, isButtonPressed());
-}
 
 
-
-String mid(String str, int start, int len) {
-  int t = 0;
-  String u = "";
-  for (t = 0; t < len; t++) {
-    u = u + str.charAt(t + start - 1);
-  }
-  return u;
-}
-
-int inStrRev(String str, String chr) {
-  int t = str.length() - 1;
-  int u = 0;
-  while (t > -1) {
-    if (str.charAt(t) == chr.charAt(0)) {
-      u = t + 1; t = -1;
-    }
-    t = t - 1;
-  }
-  return u;
-}
-
-int len(String str) {
-  return str.length();
-}
-
-
-String header;
-void connect_to_wifi() {
-  WiFiClient client = server.available();   // Listen for incoming clients
-
-  if (client) {                             // If a new client connects,
-    Serial.println("New Client.");          // print a message out in the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected()) {            // loop while the client's connected
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
-        header += c;
-        if (c == '\n') {                    // if the byte is a newline character
-          // if the current line is blank, you got two newline characters in a row.
-          // that's the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            // and a content-type so the client knows what's coming, then a blank line:
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println("Connection: close");
-            client.println();
-
-            if (header.indexOf("GET /4/on") >= 0) {
-              if (!led_state) {
-                led_toggle(true, true );
-              }
-            } else if (header.indexOf("GET /4/off") >= 0) {
-              if (led_state) {
-                led_toggle(true, true );
-              }
-            } else if (header.indexOf("GET /4/reboot") >= 0) {
-              Serial.println("REbooting");
-              //delay(5000);
-              // reboot();
-            }
-            // Display the HTML web page
-            client.println("<!DOCTYPE html><html>");
-            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            client.println("<link rel=\"icon\" href=\"data:,\">");
-            // CSS to style the on/off buttons
-            // Feel free to change the background-color and font-size attributes to fit your preferences
-            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-            client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
-            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-            client.println(".button2 {background-color: #77878A;}</style></head>");
-
-            // Web Page Heading
-            client.println("<body><h1>HOME Humidity Web Server</h1>");
-
-            // Display current state, and ON/OFF buttons for GPIO 5
-            //client.println("<p>GPIO 5 - State " + led_state + "</p>");
-            // If the output5State is off, it displays the ON button
-            if (led_state) {
-              client.println("<p><a href=\"/5/on\"><button class=\"button\">ON</button></a></p>");
-            } else {
-              client.println("<p><a href=\"/5/off\"><button class=\"button button2\">OFF</button></a></p>");
-            }
-
-
-            client.println("<p><a href=\"/4/reboot\"><button class=\"button button2\">Reboot</button></a></p>");
-            client.println("</body></html>");
-
-            // The HTTP response ends with another blank line
-            client.println();
-            // Break out of the while loop
-            break;
-          } else { // if you got a newline, then clear currentLine
-            currentLine = "";
-          }
-        } else if (c != '\r') {  // if you got anything else but a carriage return character,
-          currentLine += c;      // add it to the end of the currentLine
-        }
-      }
-    }
-    // Clear the header variable
-    header = "";
-    // Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
-  }
+   set_led_state(led_monitor.check());
+ 
 }

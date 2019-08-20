@@ -2,9 +2,11 @@
 #define __LCD_MENUMGR_H_
 #include "ClickMgr.h"
 //https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
-typedef const String (*status)();
+typedef const String (*StatusFunction)();
+typedef void (*OnClickFunction)(bool btnState, bool longPress);
 
-typedef void (*action)(bool btnState, bool longPress);
+typedef void (*EditFunction)(bool btnState, bool longPress, int direction, bool save);
+
 class MenuItem;
 class LcdMenuCallback {
   public:
@@ -12,16 +14,18 @@ class LcdMenuCallback {
 };
 class MenuItem {
     String name;
-    boolean editable = false;
-    int *value = 0;
+  
+   
     boolean edit = false; // currently editing by pressing click.
-    status s_fn;
-    action a_fn;
+
+    EditFunction e_fn;
+    StatusFunction s_fn;
+    OnClickFunction a_fn;
     
 
   public:
-    MenuItem(String name_, status s, action a, bool editable_ = false, int *value_=NULL) :
-      name(name_), s_fn(s), a_fn(a), editable(editable_), value(value_) {
+    MenuItem(String name_, StatusFunction s, OnClickFunction a, EditFunction e_fn_=NULL) :
+      name(name_), s_fn(s), a_fn(a),  e_fn(e_fn_) {
     }
 
     String get_name() {
@@ -29,7 +33,7 @@ class MenuItem {
     }
 
     bool is_editable() {
-      return editable;
+      return e_fn!=NULL;
     }
 
     bool get_edit_mode() {
@@ -40,12 +44,10 @@ class MenuItem {
       edit = mode_;
     }
 
-    int get_value() {
-      return *value;
-    }
-
-    void set_value(int value_) {
-      *value = value_;
+    void set_value(bool clicked, bool longPress, int direction, bool save ) {
+      if(e_fn!=NULL) {
+         e_fn(clicked, longPress, direction, save);
+      }
     }
 
     String get_status() {
@@ -82,8 +84,8 @@ class MenuDetails {
       add(item, NULL, NULL);
     }
 
-    void add(String item, status func, action atn, bool editable_=false, int *value_=NULL) {
-      items[count] = new MenuItem(item, func, atn,editable_, value_);
+    void add(String item, StatusFunction s_fn, OnClickFunction a_fn, EditFunction e_fn_=NULL) {
+      items[count] = new MenuItem(item, s_fn, a_fn, e_fn_);
       count++;
     }
 
@@ -136,11 +138,11 @@ class MenuMgr {
       int click_state = clickmgr.loop(btn_state);
       bool clicked = (click_state > 0);
       bool longPressed  = (click_state & ClickMgr::LONG_PRESSED) > 0;
-      lcd.print(" "); lcd.print(clicked);
-      if (longPressed) {
-        lcd.print(" "); lcd.print(longPressed);
-        Serial.println("in long press");
-      }
+//      lcd.print(" "); lcd.print(clicked);
+//      if (longPressed) {
+//        lcd.print(" "); lcd.print(longPressed);
+//        Serial.println("in long press");
+//      }
       // read the
       if (longPressed || clicked) {
         lastPosition = position;
@@ -170,6 +172,7 @@ class MenuMgr {
       // where are we.
       MenuItem *item = current->get_item();
 
+      bool save_required = false;
       if (clicked  ) {
         Serial.print("CLK: " );
         Serial.println((long )item, HEX );
@@ -177,11 +180,14 @@ class MenuMgr {
         if (item->is_editable()) {
           item->set_mode(!item->get_edit_mode());
           increment = 0;
+          save_required = item->get_edit_mode()?false:true;
         }
       }
-
+      if( save_required ) {
+        item->set_value(clicked, longPressed, increment, true);
+      }
       if (item->is_editable() && item->get_edit_mode()) { //currently in edit mode
-        item->set_value(item->get_value() + increment);
+        item->set_value(clicked, longPressed, increment, false);
       } else {
         item = current->update_position(increment);
       }
