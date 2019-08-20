@@ -111,7 +111,7 @@ void setup() {
  
   menu_mgr.get_menu().add("HUMIDITY", get_humidity, NULL);
   menu_mgr.get_menu().add("HUM HIGH", get_high_humidity, NULL, true, &high_humidity);
-  menu_mgr.get_menu().add("HUM LOW", get_lo_humidity, NULL, true, &low_humidity);
+  menu_mgr.get_menu().add("HUM LOW", get_low_humidity, NULL, true, &low_humidity);
   menu_mgr.get_menu().add("IP", get_ip, NULL);
   menu_mgr.get_menu().add("UPTIME", get_uptime, NULL);
   menu_mgr.get_menu().add("RESET WIFI", NULL, reset_wifi);
