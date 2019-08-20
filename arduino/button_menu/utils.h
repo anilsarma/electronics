@@ -5,7 +5,7 @@ String ip2Str(IPAddress ip) {
   for (int i = 0; i < 4; i++) {
     s += i  ? "." + String(ip[i]) : String(ip[i]);
   }
-  Serial.print(s);
+ // Serial.print(s);
   return s;
 }
 const String get_ip() {
