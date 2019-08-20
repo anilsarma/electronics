@@ -43,7 +43,7 @@ struct Callback: public LcdMenuCallback {
 
     lcd.setCursor(0, 1);
     lcd.print(item->get_name());
-    lcd.print(" ");
+    lcd.print(item->get_edit_mode()?">":" ");
     lcd.print(item->get_status());
     lcd.print("            ");
 
