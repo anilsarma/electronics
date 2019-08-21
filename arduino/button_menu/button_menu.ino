@@ -206,17 +206,18 @@ void setup() {
   menu_mgr.get_menu().add("LED", led_status, led_toggle);
   menu_mgr.get_menu().add("MANUAL", manual_led_status, on_click_manual_led);
   menu_mgr.get_menu().add("IP", get_ip, NULL);
-
-  MenuDetails *settings = new MenuDetails("Settings ...");
-  settings->add("LED RUN", get_led_runtime, NULL,   &edit_led_runtime);
-  settings->add("LED PAUSE", get_led_pausetime, NULL,   &edit_led_pausetime);
-  
-  settings->add("HUMIDITY HIGH ON", get_high_humidity, NULL, &edit_high_humidity);
-  settings->add("HUMIDITY LOW OFF", get_low_humidity, NULL,   &edit_low_humidity);
-
-  settings->add_parent(&menu_mgr.get_menu());
-  menu_mgr.get_menu().add(settings);
   menu_mgr.get_menu().add("UPTIME", get_uptime, NULL);
+  
+  MenuDetails *settings = new MenuDetails("Settings ...");
+  settings->add("SET RUN TIME", get_led_runtime, NULL,   &edit_led_runtime);
+  settings->add("SET PAUSE TIME", get_led_pausetime, NULL,   &edit_led_pausetime);
+  
+  settings->add("SET HUMIDITY ON", get_high_humidity, NULL, &edit_high_humidity);
+  settings->add("SET HUMIDITY OFF", get_low_humidity, NULL,   &edit_low_humidity);
+  settings->add_parent(&menu_mgr.get_menu());
+
+  menu_mgr.get_menu().add(settings);
+  
   menu_mgr.get_menu().add("RESET WIFI", NULL, reset_wifi);
 
   lcd.begin();
