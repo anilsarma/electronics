@@ -141,7 +141,7 @@ class MenuDetails {
     }
 
 };
-extern LiquidCrystal_I2C lcd;
+//extern LiquidCrystal_I2C lcd;
 class MenuMgr {
     MenuDetails main;
     MenuDetails *current = NULL;
@@ -216,8 +216,8 @@ class MenuMgr {
       bool save_required = false;
       if ( item == NULL ) {
         if (clicked) {          
-          
           current = current->get_parent();
+          current->update_position(-1);
         }
       } else {
         if (clicked ) {
