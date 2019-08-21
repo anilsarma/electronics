@@ -35,68 +35,84 @@ void (*reboot)(void) = 0;
 //
 // new
 struct Callback: public LcdMenuCallback {
-  void update_lcd(MenuItem* item) {
+  void update_lcd(MenuDetails* menu, MenuItem* item) {
     lcd.setCursor(0, 0);
-    lcd.print("*MENU*");
-
-    lcd.setCursor(0, 1);
+    //lcd.print("*MENU*");
+    lcd.print(menu->get_name());
+  
+    if (item != NULL) {
+        lcd.print("<");
+    } else {
+        lcd.print(">");
+    }
     lcd.print(item->get_name());
-    lcd.print(item->get_edit_mode()?">":" ");
-    lcd.print(item->get_status());
-    lcd.print("            ");
 
+    if (item != NULL) {
+      lcd.setCursor(0, 1);
+      lcd.print(item->get_name());
+      lcd.print(item->get_edit_mode() ? ">" : " ");
+      lcd.print(item->get_status());
+      lcd.print("            ");
+    }
+  }
 
+  void wakeup() {
+    lcd.backlight();
+  }
+  void sleep() {
+    lcd.noBacklight();
   }
 };
 
 Callback callback;
 MenuMgr menu_mgr(&callback);
 
-bool desired=false;
+bool desired = false;
 Monitor::State led_state = Monitor::STOPPED;
 Monitor led_monitor(30000, 5000);
 
 const String get_led_runtime() {
-  return String(led_monitor.get_runtime()/1000);
+  return String(led_monitor.get_runtime() / 1000);
 }
 void edit_led_runtime(bool clicked, bool longPressed, int direction, bool save) {
   led_monitor.set_runtime( led_monitor.get_runtime()  + (direction * 30000));
   Serial.print( led_monitor.get_runtime()  + (direction * 30000) );
-  if(save) {
-    Serial.print("Saving edit_led_runti "); 
+  if (save) {
+    Serial.print("Saving edit_led_runti ");
     Serial.println(led_monitor.get_runtime());
   }
 }
- const String get_led_pausetime() {
-  return String(led_monitor.get_pausetime()/1000);
+const String get_led_pausetime() {
+  return String(led_monitor.get_pausetime() / 1000);
 }
 void edit_led_pausetime(bool clicked, bool longPressed, int direction, bool save) {
   led_monitor.set_pausetime( led_monitor.get_pausetime()  + (direction * 30000));
-  if(save) {
+  if (save) {
     Serial.print("Saving led pause time ");
     Serial.println(led_monitor.get_pausetime());
   }
 }
 const String led_status() {
-  String str(led_state==Monitor::STARTED ? "ON" : (led_state==Monitor::STOPPED?"OFF":"PAUSED"));
+  String str(led_state == Monitor::STARTED ? "ON" : (led_state == Monitor::STOPPED ? "OFF" : "PAUSED"));
   double t = led_monitor.get_time();
-  if( t>0) {
-    return str + " " + String(t/1000);
+  if ( t > 0) {
+    return str + " " + String(t / 1000);
   }
   return str;
 }
 
 
 void set_led_state(Monitor::State state) {
-  if( led_state != state ) {
-      led_state = state;
-      digitalWrite(LED, led_state==Monitor::STARTED ? HIGH : LOW);
+  led_state = desired ? state : Monitor::STOPPED;
+  if ( led_state != state ) {
+    led_state = state;
+    digitalWrite(LED, led_state == Monitor::STARTED ? HIGH : LOW);
   }
 }
 void led_toggle(bool btn, bool lp) {
   desired = !desired;
   led_monitor.monitor(desired);
-  set_led_state(desired?Monitor::STARTED:Monitor::STOPPED);
+  set_led_state(desired ? Monitor::STARTED : Monitor::STOPPED);
 }
 
 void reset_wifi(bool btn, bool lp) {
@@ -115,7 +131,7 @@ const String get_high_humidity() {
 
 void edit_high_humidity(bool clicked, bool longPressed, int direction, bool save) {
   high_humidity += direction;
-  if(save) {
+  if (save) {
     Serial.print("Saving HIGH ");
     Serial.println(high_humidity);
   }
@@ -126,7 +142,7 @@ const String get_low_humidity() {
 }
 void edit_low_humidity(bool clicked, bool longPressed, int direction, bool save) {
   low_humidity += direction;
-  if(save) {
+  if (save) {
     Serial.print("Saving LOW ");
     Serial.println(low_humidity);
   }
@@ -157,7 +173,7 @@ const String get_uptime() {
 void connect_to_wifi(WiFiServer);
 void setup() {
   Serial.begin(9600);
- 
+
   menu_mgr.get_menu().add("HUMIDITY", get_humidity, NULL);
   menu_mgr.get_menu().add("HUM HIGH", get_high_humidity, NULL, &edit_high_humidity);
   menu_mgr.get_menu().add("HUM LOW", get_low_humidity, NULL,   &edit_low_humidity);
@@ -167,7 +183,7 @@ void setup() {
   menu_mgr.get_menu().add("LED", led_status, led_toggle);
   menu_mgr.get_menu().add("LED RUN", get_led_runtime, NULL,   &edit_led_runtime);
   menu_mgr.get_menu().add("LED PAUSE", get_led_pausetime, NULL,   &edit_led_pausetime);
-  
+
   menu_mgr.get_menu().add("SETTINGS");
   menu_mgr.get_menu().add("GOOD");
   menu_mgr.get_menu().add("BAD");
@@ -203,12 +219,12 @@ bool isButtonPressed() {
 }
 
 
-void loop() { 
+void loop() {
   connect_to_wifi(server);
   long newPosition = encoder->read();
   menu_mgr.loop(newPosition, isButtonPressed());
 
 
-   set_led_state(led_monitor.check());
- 
+  set_led_state(led_monitor.check());
+
 }

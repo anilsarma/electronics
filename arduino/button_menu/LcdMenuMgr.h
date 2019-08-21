@@ -8,23 +8,27 @@ typedef void (*OnClickFunction)(bool btnState, bool longPress);
 typedef void (*EditFunction)(bool btnState, bool longPress, int direction, bool save);
 
 class MenuItem;
+class MenuDetails;
+
 class LcdMenuCallback {
   public:
-    virtual void update_lcd(MenuItem *item) = 0;
+    virtual void update_lcd(MenuDetails*, MenuItem *item) = 0;
+    virtual void sleep() =0;
+    virtual void wakeup() = 0;
 };
 class MenuItem {
     String name;
-  
-   
+
+
     boolean edit = false; // currently editing by pressing click.
 
     EditFunction e_fn;
     StatusFunction s_fn;
     OnClickFunction a_fn;
-    
+
 
   public:
-    MenuItem(String name_, StatusFunction s, OnClickFunction a, EditFunction e_fn_=NULL) :
+    MenuItem(String name_, StatusFunction s, OnClickFunction a, EditFunction e_fn_ = NULL) :
       name(name_), s_fn(s), a_fn(a),  e_fn(e_fn_) {
     }
 
@@ -33,7 +37,7 @@ class MenuItem {
     }
 
     bool is_editable() {
-      return e_fn!=NULL;
+      return e_fn != NULL;
     }
 
     bool get_edit_mode() {
@@ -45,8 +49,8 @@ class MenuItem {
     }
 
     void set_value(bool clicked, bool longPress, int direction, bool save ) {
-      if(e_fn!=NULL) {
-         e_fn(clicked, longPress, direction, save);
+      if (e_fn != NULL) {
+        e_fn(clicked, longPress, direction, save);
       }
     }
 
@@ -69,22 +73,24 @@ class MenuDetails {
     MenuItem *items[20];
 
   public:
-    char *name;
+    String name;
     int pos = 0;
     int count = 0;
-    int dummy=0;
+    int dummy = 0;
 
-    MenuDetails() {
-      name = "MENU";
+    MenuDetails(const String name_) {
+      name = name_;
       count = 0;
       pos = 0;
     }
-
-    void add(char *item) {
+    String get_name() {
+      return name;
+    }
+    void add(String item) {
       add(item, NULL, NULL);
     }
 
-    void add(String item, StatusFunction s_fn, OnClickFunction a_fn, EditFunction e_fn_=NULL) {
+    void add(String item, StatusFunction s_fn, OnClickFunction a_fn, EditFunction e_fn_ = NULL) {
       items[count] = new MenuItem(item, s_fn, a_fn, e_fn_);
       count++;
     }
@@ -94,6 +100,9 @@ class MenuDetails {
     //    }
 
     MenuItem *get_item() {
+      if( pos <0) {
+        return NULL;
+      }
       return items[pos];
     }
 
@@ -103,7 +112,11 @@ class MenuDetails {
       }
       pos += upd;
       pos = (pos >= count) ? count - 1 : pos;
-      pos = (pos < 0) ? 0 : pos;
+      if(parent ==NULL) {
+          pos = (pos < 0) ? 0 : pos;
+      } else {
+           pos = (pos < -1) ? -1 : pos;
+      }
       return get_item();
     }
 
@@ -114,11 +127,13 @@ class MenuMgr {
     MenuDetails *current = NULL;
     int m0 = 0; // move time
     int t0 = 0;
+    int lastEvent=0;
     int lastPosition = 0;
     ClickMgr clickmgr;
     LcdMenuCallback *callback;
+    bool in_sleep= false;
   public:
-    MenuMgr(LcdMenuCallback* callback_): callback(callback_) {
+    MenuMgr(LcdMenuCallback* callback_): main("MENU"), callback(callback_) {
       current = &main;
     }
 
@@ -138,11 +153,11 @@ class MenuMgr {
       int click_state = clickmgr.loop(btn_state);
       bool clicked = (click_state > 0);
       bool longPressed  = (click_state & ClickMgr::LONG_PRESSED) > 0;
-//      lcd.print(" "); lcd.print(clicked);
-//      if (longPressed) {
-//        lcd.print(" "); lcd.print(longPressed);
-//        Serial.println("in long press");
-//      }
+      //      lcd.print(" "); lcd.print(clicked);
+      //      if (longPressed) {
+      //        lcd.print(" "); lcd.print(longPressed);
+      //        Serial.println("in long press");
+      //      }
       // read the
       if (longPressed || clicked) {
         lastPosition = position;
@@ -159,52 +174,59 @@ class MenuMgr {
 
         }
       }
-
-      //      {
-      //        Serial.print("increment ");
-      //        Serial.print(increment);
-      //        Serial.print(" CLK:" );
-      //        Serial.print(clicked );
-      //        Serial.print(" LP:" );
-      //        Serial.println(longPressed );
-      //      }
-
+      if( increment ==0 && !clicked) {
+        if(( lastEvent - t1) > 30000){
+          if(!in_sleep) {
+            callback->sleep();
+          }
+          in_sleep = true;
+        }
+      }else {
+        if(!in_sleep) {
+          callback->wakeup(); // need a flag
+        }
+        in_sleep = false;
+        lastEvent = t1;
+      }
       // where are we.
       MenuItem *item = current->get_item();
 
       bool save_required = false;
-      if (clicked  ) {
-        Serial.print("CLK: " );
-        Serial.println((long )item, HEX );
-        item->call_action( clicked, longPressed);
-        if (item->is_editable()) {
-          item->set_mode(!item->get_edit_mode());
-          increment = 0;
-          save_required = item->get_edit_mode()?false:true;
+      if ( item == NULL ) {
+
+      } else {
+        if (clicked  ) {
+          Serial.print("CLK: " );
+          Serial.println((long )item, HEX );
+          item->call_action( clicked, longPressed);
+          if (item->is_editable()) {
+            item->set_mode(!item->get_edit_mode());
+            increment = 0;
+            save_required = item->get_edit_mode() ? false : true;
+          }
+        }
+        if ( save_required ) {
+          item->set_value(clicked, longPressed, increment, true);
+        }
+        if (item->is_editable() && item->get_edit_mode()) { //currently in edit mode
+          item->set_value(clicked, longPressed, increment, false);
+        } else {
+          item = current->update_position(increment);
         }
       }
-      if( save_required ) {
-        item->set_value(clicked, longPressed, increment, true);
-      }
-      if (item->is_editable() && item->get_edit_mode()) { //currently in edit mode
-        item->set_value(clicked, longPressed, increment, false);
-      } else {
-        item = current->update_position(increment);
-      }
-
-      update_menu(item);
+      update_menu(current, item);
     }
 
-    void update_menu(MenuItem *item) {
-//      Serial.print(item->get_name());
-//      if (item->is_editable()) {
-//        Serial.println(item->get_value());
-//      } else {
-//        Serial.println(item->get_status());
-//      }
+    void update_menu(MenuDetails* current, MenuItem *item) {
+      //      Serial.print(item->get_name());
+      //      if (item->is_editable()) {
+      //        Serial.println(item->get_value());
+      //      } else {
+      //        Serial.println(item->get_status());
+      //      }
 
       if (callback != NULL) {
-        callback->update_lcd(item);
+        callback->update_lcd(current, item);
       }
     }
 };
