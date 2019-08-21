@@ -2,7 +2,7 @@
 #include <LiquidCrystal_I2C.h>
 #define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <Encoder.h>
-
+#include <dht11.h>
 //#include <ESP8266WiFi.h>
 //#include <DNSServer.h>
 #include <ESP8266WebServer.h>
@@ -17,6 +17,8 @@
 // F formatter tells compliler it's a floating point value
 #define encoder0PinA D3 // CLK on rotary encoder
 #define encoder0PinB D4 // DT on rotary encoder
+
+#define DHT11PIN 7
 #define LED D6
 
 volatile unsigned int encoder0Pos = 0;
@@ -27,7 +29,7 @@ char id = 0;
 LiquidCrystal_I2C lcd(0x27, 16, 2); // SDA = D2, SCL=D1 (ESP8266E)
 WiFiManager wifiManager;
 WiFiServer server(80);
-
+dht11 humidity_sensor;
 Encoder * encoder = NULL; //myEnc(D3, D4);
 void (*reboot)(void) = 0;
 
@@ -79,7 +81,7 @@ void edit_led_pausetime(bool clicked, bool longPressed, int direction, bool save
 }
 const String led_status() {
   String str(led_state==Monitor::STARTED ? "ON" : (led_state==Monitor::STOPPED?"OFF":"PAUSED"));
-  double t = led_monitor.get_time();
+  long t = led_monitor.get_time();
   if( t>0) {
     return str + " " + String(t/1000);
   }
@@ -110,7 +112,7 @@ void reset_wifi(bool btn, bool lp) {
 
 int high_humidity = 50;
 const String get_high_humidity() {
-  return  String(high_humidity);
+  return "NONE"; //  String(humidity_sensor.humidity) + "%s";
 }
 
 void edit_high_humidity(bool clicked, bool longPressed, int direction, bool save) {
@@ -190,7 +192,7 @@ void setup() {
   // initialize serial transmission for debugging
   Serial.write("setup complete");
   lcd.setCursor(0, 0);
-  lcd.print("Ready");
+  lcd.print("Ready ");
 
 }
 //byte pressedButton, currentPos, currentPosParent, possiblePos[20], possiblePosCount, possiblePosScroll = 0;
@@ -206,6 +208,7 @@ bool isButtonPressed() {
 void loop() { 
   connect_to_wifi(server);
   long newPosition = encoder->read();
+ // humidity_sensor.read( DHT11PIN );
   menu_mgr.loop(newPosition, isButtonPressed());
 
 
