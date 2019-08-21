@@ -1,5 +1,6 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
+
 String ip2Str(IPAddress ip) {
   String s = "";
   for (int i = 0; i < 4; i++) {
@@ -37,5 +38,21 @@ int inStrRev(String str, String chr) {
 int len(String str) {
   return str.length();
 }
-
+const String get_uptime() {
+  double t = millis() / 1000;
+  String u = "s";
+  if ( t > 1000) {
+    t = t / 60;
+    u = "m";
+  }
+  if ( t > 1000) {
+    t = t / 60.0;
+    u = "h";
+  }
+  if ( t > 1000) {
+    t = t / 24.0;
+    u = "d";
+  }
+  return String(t) + "" + u;
+}
 #endif
