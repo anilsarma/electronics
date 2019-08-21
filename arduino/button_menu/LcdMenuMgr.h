@@ -125,7 +125,7 @@ class MenuDetails {
       }
       return items[pos];
     }
-
+    void set_pos(int pos_) { pos= pos_; }
     MenuItem *update_position(int upd) {
       if (upd == 0) {
         return get_item();
@@ -215,13 +215,15 @@ class MenuMgr {
 
       bool save_required = false;
       if ( item == NULL ) {
-        if (clicked) {
+        if (clicked) {          
+          
           current = current->get_parent();
         }
       } else {
         if (clicked ) {
           if(item->get_menu()) {
               current = item->get_menu();
+              current->set_pos(0);
               return;
           } else {
           Serial.print("CLKE: " );
