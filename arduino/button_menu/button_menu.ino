@@ -13,6 +13,15 @@
 #include "Monitor.h"
 #include "www_handler.h"
 #include "BufferedData.h"
+#include <PubSubClient.h>
+#include "secrets.h"
+// Replace with your network credentials
+
+
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
 
 // F formatter tells compliler it's a floating point value
 #define encoder0PinA D3 // CLK on rotary encoder
@@ -20,6 +29,7 @@
 #define CLICK_PIN D5
 #define DHT11PIN D7
 #define LED D6
+#include "mptt_mgr.h"
 
 volatile unsigned int encoder0Pos = 0;
 //Encoder encoder;
@@ -226,7 +236,7 @@ void setup() {
 
   lcd.setCursor(0, 0);
   lcd.print("Setting up WIFI ... ");
-  wifiManager.autoConnect("NODEMCUHU");
+  wifiManager.autoConnect("TAGSHUMQ");
   lcd.clear();
   server.begin();
   //humidity_sensor.begin();
@@ -236,6 +246,8 @@ void setup() {
   pinMode(LED, OUTPUT);
   //attachInterrupt(D5, handleKey, RISING);
   // initialize serial transmission for debugging
+  client.setServer(mqtt_server, 14443);
+  
   Serial.write("setup complete");
   lcd.setCursor(0, 0);
   lcd.print("Ready ");
@@ -249,9 +261,11 @@ bool isButtonPressed() {
   return true;
 }
 
-
+int wt0=0;
 void loop() {
   connect_to_wifi(server);
+  
+  
   long newPosition = encoder->read();
   humidity_sensor.read( DHT11PIN );
   menu_mgr.loop(newPosition, isButtonPressed());
@@ -259,6 +273,21 @@ void loop() {
 
   // update the humidity cache.
   get_humidity();
+ {
+      int t1 = millis();
+    int elasped = t1-wt0;
+    if(elasped >60000) {
+      if(!client.connected()){
+        mptt_reconnect(client, mqtt_user, mqtt_password);
+      }
+      if(client.connected()){
+         client.publish(topic_humidity, String(humidity.get(),0).c_str(), true);
+         client.publish(topic_temp, String(temp.get(),0).c_str(), true);
+         Serial.println("Publising to MPTT.");   
+         wt0 = t1;  
+      }
+    }
+ }
   if( humidity.get() > 30.0) {
     if(!desired) {
       led_toggle(true, true); // enable
