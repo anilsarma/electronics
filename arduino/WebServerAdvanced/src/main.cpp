@@ -505,7 +505,7 @@ void handleStatus() {
   entry["name"] =  "ssl";
   entry["value"] = eeprom.getMQSSL();
 
-  #if defined(HAS_DHT)
+  #if HAS_DHT
   entry = doc.createNestedObject();
   entry["name"] =  "tempreature";
   entry["value"] = String(tempreature) + "F";
@@ -804,7 +804,18 @@ void handleNotFound(){
   }
   server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
 }
+int getRSSIasQuality(int RSSI) {
+  int quality = 0;
 
+  if (RSSI <= -100) {
+    quality = 0;
+  } else if (RSSI >= -50) {
+    quality = 100;
+  } else {
+    quality = 2 * (RSSI + 100);
+  }
+  return quality;
+}
 
 void handleWifi() {
   DynamicJsonDocument  doc(2048);
@@ -850,7 +861,7 @@ void handleWifi() {
       //display networks in page
       for (int i = 0; i < n; i++) {
         if (indices[i] == -1) continue; // skip dups      
-        int quality = wifiManager.getRSSIasQuality(WiFi.RSSI(indices[i]));
+        int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
 
         // create an entry in the wifi array.     
         JsonObject entry = doc.createNestedObject();
